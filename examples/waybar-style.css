@@ -1,0 +1,76 @@
+/* Calendar Widget Styles */
+#calendar-widget {
+    padding: 0 10px;
+    margin: 0 5px;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+#calendar-widget.urgent {
+    background-color: #ff4444;
+    color: #ffffff;
+    animation: pulse 1s infinite;
+}
+
+#calendar-widget.soon {
+    background-color: #ffaa00;
+    color: #000000;
+}
+
+#calendar-widget.upcoming {
+    background-color: #4488ff;
+    color: #ffffff;
+}
+
+#calendar-widget.current {
+    background-color: #44ff44;
+    color: #000000;
+    animation: pulse 2s infinite;
+}
+
+#calendar-widget.past {
+    background-color: #666666;
+    color: #cccccc;
+}
+
+#calendar-widget.no-meeting {
+    background-color: transparent;
+    color: #888888;
+}
+
+#calendar-widget.error {
+    background-color: #ff0000;
+    color: #ffffff;
+}
+
+/* Hover effects */
+#calendar-widget:hover {
+    transform: scale(1.05);
+}
+
+/* Pulse animation for urgent and current meetings */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Optional: Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+    #calendar-widget.soon {
+        background-color: #cc8800;
+        color: #ffffff;
+    }
+
+    #calendar-widget.current {
+        background-color: #339933;
+        color: #ffffff;
+    }
+}
