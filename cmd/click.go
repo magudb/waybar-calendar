@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -92,9 +93,9 @@ func openMeetingLink(url string) error {
 }
 
 func runBashCommand(command string) error {
-	// Simple command execution - could be improved
-	fmt.Printf("Opening: %s\n", command)
-	return nil // For now, just log what would be opened
+	// Execute the command using shell
+	exec := exec.Command("sh", "-c", command)
+	return exec.Run()
 }
 
 func init() {

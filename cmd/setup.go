@@ -58,7 +58,7 @@ func runSetup() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	_, err := auth.GetAccessToken(ctx)
+	_, err := auth.GetAccessTokenWithOptions(ctx, true) // Force interactive authentication
 	if err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
