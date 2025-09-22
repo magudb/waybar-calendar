@@ -16,7 +16,7 @@ A Go-based calendar widget for waybar that displays your Microsoft 365 calendar 
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.24 or later
 - Linux with waybar and a web browser
 
 ### Build from source
