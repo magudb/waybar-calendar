@@ -22,7 +22,7 @@ A Go-based calendar widget for waybar that displays your Microsoft 365 calendar 
 ### Build from source
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/magudb/waybar-calendar.git
 cd calendar-widget
 go build -o calendar-widget
 sudo cp calendar-widget /usr/local/bin/
