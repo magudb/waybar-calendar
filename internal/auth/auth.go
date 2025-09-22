@@ -18,8 +18,8 @@ const (
 	PublicClientID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
 	// Common tenant allows personal and work accounts
 	CommonTenant = "common"
-	// Local redirect URI for browser authentication
-	RedirectURI = "http://localhost:8080/auth/callback"
+	// Local redirect URI for browser authentication - using port 12345 to avoid conflicts with dev servers
+	RedirectURI = "http://localhost:12345/auth/callback"
 )
 
 type Config struct {
@@ -177,13 +177,19 @@ func GetAccessToken(ctx context.Context) (azcore.AccessToken, error) {
 }
 
 func GetAccessTokenWithOptions(ctx context.Context, allowInteractive bool) (azcore.AccessToken, error) {
-	// Check for cached token first
-	tokenStore, err := LoadTokenStore()
-	if err == nil && IsTokenValid(tokenStore) {
-		return azcore.AccessToken{
-			Token:     tokenStore.AccessToken,
-			ExpiresOn: tokenStore.ExpiresAt,
-		}, nil
+	return GetAccessTokenWithOptionsAndForceRefresh(ctx, allowInteractive, false)
+}
+
+func GetAccessTokenWithOptionsAndForceRefresh(ctx context.Context, allowInteractive bool, forceRefresh bool) (azcore.AccessToken, error) {
+	// Check for cached token first (unless force refresh is requested)
+	if !forceRefresh {
+		tokenStore, err := LoadTokenStore()
+		if err == nil && IsTokenValid(tokenStore) {
+			return azcore.AccessToken{
+				Token:     tokenStore.AccessToken,
+				ExpiresOn: tokenStore.ExpiresAt,
+			}, nil
+		}
 	}
 
 	// If not interactive and no valid cached token, return error
@@ -205,7 +211,7 @@ func GetAccessTokenWithOptions(ctx context.Context, allowInteractive bool) (azco
 	}
 
 	// Cache the token
-	tokenStore = &TokenStore{
+	tokenStore := &TokenStore{
 		AccessToken: token.Token,
 		ExpiresAt:   token.ExpiresOn,
 		TokenType:   "Bearer",

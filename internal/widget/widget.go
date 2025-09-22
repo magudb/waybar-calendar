@@ -84,12 +84,35 @@ func (w *Widget) ShowTooltip() error {
 }
 
 func (w *Widget) RunWaybar() error {
+	return w.RunWaybarWithRefresh(false)
+}
+
+func (w *Widget) RunWaybarWithRefresh(forceRefresh bool) error {
 	// For waybar mode, run once and exit instead of looping
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Use service with force refresh if requested
+	service := w.calendarService
+	if forceRefresh {
+		// Create a new service with force refresh enabled
+		refreshService, err := calendar.NewCalendarServiceWithRefresh(true, true)
+		if err != nil {
+			output := WaybarOutput{
+				Text:    "Auth Error",
+				Class:   "error",
+				Alt:     "auth-error",
+				Tooltip: "Failed to create calendar service",
+			}
+			jsonBytes, _ := json.Marshal(output)
+			fmt.Println(string(jsonBytes))
+			return nil
+		}
+		service = refreshService
+	}
+
 	// Get upcoming events for main display
-	upcomingEvents, err := w.calendarService.GetUpcomingEvents(ctx)
+	upcomingEvents, err := service.GetUpcomingEvents(ctx)
 	if err != nil {
 		// Check if this is an authentication error
 		if strings.Contains(err.Error(), "authentication") ||
@@ -99,7 +122,7 @@ func (w *Widget) RunWaybar() error {
 				Text:    "Auth Required",
 				Class:   "error",
 				Alt:     "auth-required",
-				Tooltip: "Run 'calendar-widget setup' to authenticate",
+				Tooltip: "Click to authenticate",
 			}
 			jsonBytes, _ := json.Marshal(output)
 			fmt.Println(string(jsonBytes))
@@ -117,7 +140,7 @@ func (w *Widget) RunWaybar() error {
 	}
 
 	// Get today's events for tooltip
-	todaysEvents, _ := w.calendarService.GetTodaysEvents(ctx)
+	todaysEvents, _ := service.GetTodaysEvents(ctx)
 
 	// Find the most relevant upcoming meeting to display
 	var displayEvent *calendar.Event

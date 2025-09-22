@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var forceRefresh bool
+
 var waybarCmd = &cobra.Command{
 	Use:   "waybar",
 	Short: "Run in waybar mode with JSON output",
@@ -25,15 +27,16 @@ func runWaybar() error {
 		RefreshInterval: refresh,
 		Compact:         true,
 		Debug:           debug,
-	}, false) // Don't allow interactive authentication for waybar
+	}, forceRefresh) // Allow interactive authentication if force refresh is requested
 	if err != nil {
 		return fmt.Errorf("failed to create widget: %w", err)
 	}
 
-	return w.RunWaybar()
+	return w.RunWaybarWithRefresh(forceRefresh)
 }
 
 func init() {
 	waybarCmd.Flags().IntVar(&refresh, "refresh", 60, "refresh interval in seconds")
+	waybarCmd.Flags().BoolVar(&forceRefresh, "force-refresh", false, "force token refresh on this run")
 	rootCmd.AddCommand(waybarCmd)
 }
