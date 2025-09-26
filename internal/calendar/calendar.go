@@ -25,6 +25,7 @@ type Event struct {
 	WebLink   string
 	TeamsLink string
 	IsTeams   bool
+	IsAllDay  bool
 	Organizer string
 	Attendees []string
 	Body      string
@@ -107,7 +108,7 @@ func (cs *CalendarService) getEventsWithCalendarView(ctx context.Context, startD
 			StartDateTime: &startDateTime,
 			EndDateTime:   &endDateTime,
 			Orderby:       []string{"start/dateTime"},
-			Select:        []string{"subject", "start", "end", "location", "webLink", "body", "organizer", "attendees", "onlineMeeting"},
+			Select:        []string{"subject", "start", "end", "location", "webLink", "body", "organizer", "attendees", "onlineMeeting", "isAllDay"},
 			Top:           intPtr(50),
 		},
 	}
@@ -124,6 +125,7 @@ func (cs *CalendarService) getEventsWithCalendarView(ctx context.Context, startD
 			Location: getStringValue(event.GetLocation().GetDisplayName()),
 			WebLink:  getStringValue(event.GetWebLink()),
 			Body:     getStringValue(event.GetBody().GetContent()),
+			IsAllDay: getBoolValue(event.GetIsAllDay()),
 		}
 
 		if event.GetStart() != nil && event.GetStart().GetDateTime() != nil {
@@ -235,6 +237,13 @@ func getStringValue(ptr *string) string {
 	return *ptr
 }
 
+func getBoolValue(ptr *bool) bool {
+	if ptr == nil {
+		return false
+	}
+	return *ptr
+}
+
 func intPtr(i int32) *int32 {
 	return &i
 }
@@ -290,4 +299,16 @@ func (e *Event) GetStatus() string {
 		return "soon"
 	}
 	return "upcoming"
+}
+
+func (e *Event) GetDuration() time.Duration {
+	return e.End.Sub(e.Start)
+}
+
+func (e *Event) IsLongEvent() bool {
+	return e.GetDuration() > 4*time.Hour
+}
+
+func (e *Event) IsBlockingEvent() bool {
+	return !e.IsAllDay && !e.IsLongEvent()
 }

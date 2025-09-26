@@ -48,7 +48,7 @@ func runClick() error {
 			fmt.Println("Authentication required, forcing token refresh...")
 			return runClickWithForceRefresh()
 		}
-		return runWidget()
+		return nil
 	}
 
 	upcomingEvents, err := calendarService.GetUpcomingEvents(ctx)
@@ -57,24 +57,24 @@ func runClick() error {
 			fmt.Println("Authentication required, forcing token refresh...")
 			return runClickWithForceRefresh()
 		}
-		return runWidget()
+		return nil
 	}
 
-	// Look for current or urgent meetings to open
-	for _, event := range upcomingEvents {
-		status := event.GetStatus()
+	// Find the best event to open using the same prioritization as the widget
+	bestEvent := selectBestEventForClick(upcomingEvents)
+	if bestEvent != nil {
+		status := bestEvent.GetStatus()
 		if status == "current" || status == "urgent" {
-			// Open this meeting
-			if event.IsTeams && event.TeamsLink != "" {
-				return openMeetingLink(event.TeamsLink)
-			} else if event.WebLink != "" {
-				return openMeetingLink(event.WebLink)
+			if bestEvent.IsTeams && bestEvent.TeamsLink != "" {
+				return openMeetingLink(bestEvent.TeamsLink)
+			} else if bestEvent.WebLink != "" {
+				return openMeetingLink(bestEvent.WebLink)
 			}
 		}
 	}
 
 	// No current/urgent meetings, just run the regular widget
-	return runWidget()
+	return nil
 }
 
 func runClickWithForceRefresh() error {
@@ -106,24 +106,24 @@ func runClickWithForceRefresh() error {
 			return runReauth()
 		}
 		fmt.Printf("Force refresh failed with error: %v\n", err)
-		return runWidget()
+		return nil
 	}
 
-	// Look for current or urgent meetings to open
-	for _, event := range upcomingEvents {
-		status := event.GetStatus()
+	// Find the best event to open using the same prioritization as the widget
+	bestEvent := selectBestEventForClick(upcomingEvents)
+	if bestEvent != nil {
+		status := bestEvent.GetStatus()
 		if status == "current" || status == "urgent" {
-			// Open this meeting
-			if event.IsTeams && event.TeamsLink != "" {
-				return openMeetingLink(event.TeamsLink)
-			} else if event.WebLink != "" {
-				return openMeetingLink(event.WebLink)
+			if bestEvent.IsTeams && bestEvent.TeamsLink != "" {
+				return openMeetingLink(bestEvent.TeamsLink)
+			} else if bestEvent.WebLink != "" {
+				return openMeetingLink(bestEvent.WebLink)
 			}
 		}
 	}
 
 	// Successfully refreshed but no urgent meetings - just run widget
-	return runWidget()
+	return nil
 }
 
 func isAuthError(err error) bool {
@@ -155,6 +155,42 @@ func runBashCommand(command string) error {
 	// Execute the command using shell
 	exec := exec.Command("sh", "-c", command)
 	return exec.Run()
+}
+
+func selectBestEventForClick(events []calendar.Event) *calendar.Event {
+	if len(events) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	statusPriority := []string{"current", "urgent", "soon", "upcoming"}
+
+	// For each status level, first look for blocking events, then fall back to any event
+	for _, targetStatus := range statusPriority {
+		// First pass: find blocking events with this status
+		for _, event := range events {
+			status := event.GetStatus()
+			if status == targetStatus && event.IsBlockingEvent() {
+				if targetStatus == "upcoming" && !event.Start.After(now) {
+					continue
+				}
+				return &event
+			}
+		}
+
+		// Second pass: find any event with this status (fallback for all-day/long events)
+		for _, event := range events {
+			status := event.GetStatus()
+			if status == targetStatus {
+				if targetStatus == "upcoming" && !event.Start.After(now) {
+					continue
+				}
+				return &event
+			}
+		}
+	}
+
+	return nil
 }
 
 func init() {

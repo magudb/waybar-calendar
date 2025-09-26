@@ -142,48 +142,8 @@ func (w *Widget) RunWaybarWithRefresh(forceRefresh bool) error {
 	// Get today's events for tooltip
 	todaysEvents, _ := service.GetTodaysEvents(ctx)
 
-	// Find the most relevant upcoming meeting to display
-	var displayEvent *calendar.Event
-	now := time.Now()
-
-	// Priority: current > urgent > soon > upcoming
-	for _, event := range upcomingEvents {
-		status := event.GetStatus()
-		if status == "current" {
-			displayEvent = &event
-			break
-		}
-	}
-
-	if displayEvent == nil {
-		for _, event := range upcomingEvents {
-			status := event.GetStatus()
-			if status == "urgent" {
-				displayEvent = &event
-				break
-			}
-		}
-	}
-
-	if displayEvent == nil {
-		for _, event := range upcomingEvents {
-			status := event.GetStatus()
-			if status == "soon" {
-				displayEvent = &event
-				break
-			}
-		}
-	}
-
-	// If no urgent/current meetings, show next upcoming
-	if displayEvent == nil {
-		for _, event := range upcomingEvents {
-			if event.Start.After(now) {
-				displayEvent = &event
-				break
-			}
-		}
-	}
+	// Find the most relevant upcoming meeting to display with blocking priority
+	displayEvent := selectBestEvent(upcomingEvents)
 
 	if displayEvent == nil {
 		output := WaybarOutput{
@@ -461,43 +421,45 @@ func generateWaybarOutput(meeting *calendar.Event) WaybarOutput {
 
 	var text, class, alt string
 
+	subject := escapePangoMarkup(meeting.Subject)
+
 	switch status {
 	case "urgent":
-		text = fmt.Sprintf("🔴 %s", meeting.Subject)
+		text = fmt.Sprintf("🔴 %s", subject)
 		if len(text) > 50 {
-			text = fmt.Sprintf("🔴 %s...", meeting.Subject[:45])
+			text = fmt.Sprintf("🔴 %s...", subject[:45])
 		}
 		class = "urgent"
 		alt = "urgent"
 	case "soon":
-		text = fmt.Sprintf("🟡 %s", meeting.Subject)
+		text = fmt.Sprintf("🟡 %s", subject)
 		if len(text) > 50 {
-			text = fmt.Sprintf("🟡 %s...", meeting.Subject[:45])
+			text = fmt.Sprintf("🟡 %s...", subject[:45])
 		}
 		class = "soon"
 		alt = "soon"
 	case "current":
-		text = fmt.Sprintf("🟢 %s", meeting.Subject)
+		text = fmt.Sprintf("🟢 %s", subject)
 		if len(text) > 50 {
-			text = fmt.Sprintf("🟢 %s...", meeting.Subject[:45])
+			text = fmt.Sprintf("🟢 %s...", subject[:45])
 		}
 		class = "current"
 		alt = "current"
 	case "upcoming":
 		if timeUntil < time.Hour {
-			text = fmt.Sprintf("🔵 %s (in %dm)", meeting.Subject, int(timeUntil.Minutes()))
+			text = fmt.Sprintf("🔵 %s (in %dm)", subject, int(timeUntil.Minutes()))
 		} else {
-			text = fmt.Sprintf("🔵 %s (in %dh%dm)", meeting.Subject, int(timeUntil.Hours()), int(timeUntil.Minutes())%60)
+			text = fmt.Sprintf("🔵 %s (in %dh%dm)", subject, int(timeUntil.Hours()), int(timeUntil.Minutes())%60)
 		}
 		if len(text) > 50 {
-			text = fmt.Sprintf("🔵 %s...", meeting.Subject[:40])
+			text = fmt.Sprintf("🔵 %s...", subject[:40])
 		}
 		class = "upcoming"
 		alt = "upcoming"
 	case "past":
-		text = fmt.Sprintf("⚫ %s", meeting.Subject)
+		text = fmt.Sprintf("⚫ %s", subject)
 		if len(text) > 50 {
-			text = fmt.Sprintf("⚫ %s...", meeting.Subject[:45])
+			text = fmt.Sprintf("⚫ %s...", subject[:45])
 		}
 		class = "past"
 		alt = "past"
@@ -512,6 +474,13 @@ func generateWaybarOutput(meeting *calendar.Event) WaybarOutput {
 		Class: class,
 		Alt:   alt,
 	}
+}
+
+func escapePangoMarkup(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
 }
 
 func generateWaybarOutputForSchedule(displayEvent *calendar.Event, allEvents []calendar.Event) WaybarOutput {
@@ -557,13 +526,13 @@ func generateWaybarOutputForSchedule(displayEvent *calendar.Event, allEvents []c
 				indicator = "📅"
 			}
 
-			title := event.Subject
+			title := escapePangoMarkup(event.Subject)
 			if event.IsTeams {
 				title = title + " (Teams)"
 			}
 
 			if event.Location != "" && !event.IsTeams {
-				title = title + " @ " + event.Location
+				title = title + " @ " + escapePangoMarkup(event.Location)
 			}
 
 			line := fmt.Sprintf("%s %s %s", indicator, timeStr, title)
@@ -613,13 +582,13 @@ func generateTooltipForSchedule(todaysEvents []calendar.Event) string {
 				indicator = "📅"
 			}
 
-			title := event.Subject
+			title := escapePangoMarkup(event.Subject)
 			if event.IsTeams {
 				title = title + " (Teams)"
 			}
 
 			if event.Location != "" && !event.IsTeams {
-				title = title + " @ " + event.Location
+				title = title + " @ " + escapePangoMarkup(event.Location)
 			}
 
 			line := fmt.Sprintf("%s %s %s", indicator, timeStr, title)
@@ -628,6 +597,42 @@ func generateTooltipForSchedule(todaysEvents []calendar.Event) string {
 	}
 
 	return strings.Join(tooltipLines, "\n")
+}
+
+func selectBestEvent(events []calendar.Event) *calendar.Event {
+	if len(events) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	statusPriority := []string{"current", "urgent", "soon", "upcoming"}
+
+	// For each status level, first look for blocking events, then fall back to any event
+	for _, targetStatus := range statusPriority {
+		// First pass: find blocking events with this status
+		for _, event := range events {
+			status := event.GetStatus()
+			if status == targetStatus && event.IsBlockingEvent() {
+				if targetStatus == "upcoming" && !event.Start.After(now) {
+					continue
+				}
+				return &event
+			}
+		}
+
+		// Second pass: find any event with this status (fallback for all-day/long events)
+		for _, event := range events {
+			status := event.GetStatus()
+			if status == targetStatus {
+				if targetStatus == "upcoming" && !event.Start.After(now) {
+					continue
+				}
+				return &event
+			}
+		}
+	}
+
+	return nil
 }
 
 func renderExtendedTooltip(todaysEvents []calendar.Event, upcomingEvents []calendar.Event) string {
